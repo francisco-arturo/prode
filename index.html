@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PRODE Mundial 2026</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <!-- Pantalla 1: Bienvenida -->
+  <section id="screen-welcome" class="screen active">
+    <div class="welcome-card">
+      <div class="welcome-emoji">⚽🏆</div>
+      <h1>PRODE Mundial 2026</h1>
+      <p class="subtitle">Pronosticá la fase de grupos y todas las eliminatorias.</p>
+      <form id="welcome-form" autocomplete="off">
+        <label for="player-name">Tu nombre</label>
+        <input type="text" id="player-name" placeholder="Ej: Francisco" maxlength="40" required />
+        <button type="submit" class="btn btn-primary">Comenzar</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- Pantalla 2: Pronósticos -->
+  <section id="screen-main" class="screen">
+    <header class="app-header">
+      <div class="app-header-inner">
+        <div class="player-info">
+          <span class="player-label">Jugador</span>
+          <strong id="player-display"></strong>
+        </div>
+        <div class="header-actions">
+          <button id="btn-save" class="btn btn-primary">Guardar pronósticos</button>
+          <button id="btn-reset" class="btn btn-ghost">Empezar de nuevo</button>
+        </div>
+      </div>
+      <div id="save-feedback" class="save-feedback" aria-live="polite"></div>
+    </header>
+
+    <main class="content">
+      <section class="phase">
+        <h2 class="phase-title">Fase de Grupos</h2>
+        <div id="groups-container" class="groups-grid"></div>
+      </section>
+
+      <section class="phase">
+        <h2 class="phase-title">Fase Eliminatoria</h2>
+        <div id="knockout-notice" class="notice"></div>
+        <div id="knockout-container" class="knockout-rounds"></div>
+      </section>
+    </main>
+  </section>
+
+  <script src="js/data.js"></script>
+  <script src="js/annex-c.js"></script>
+  <script src="js/bracket.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
