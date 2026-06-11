@@ -14,12 +14,27 @@ document.addEventListener("DOMContentLoaded", function () {
   els.knockoutContainer = document.getElementById("knockout-container");
   els.knockoutNotice = document.getElementById("knockout-notice");
   els.btnSave = document.getElementById("btn-save");
+  els.btnParticipants = document.getElementById("btn-participants");
   els.btnReset = document.getElementById("btn-reset");
   els.saveFeedback = document.getElementById("save-feedback");
 
+  els.overlay = document.getElementById("viewer-overlay");
+  els.viewerTitle = document.getElementById("viewer-title");
+  els.viewerBody = document.getElementById("viewer-body");
+  els.viewerBack = document.getElementById("viewer-back");
+  els.viewerClose = document.getElementById("viewer-close");
+
   els.welcomeForm.addEventListener("submit", onWelcomeSubmit);
   els.btnSave.addEventListener("click", onSaveClick);
+  els.btnParticipants.addEventListener("click", openParticipants);
   els.btnReset.addEventListener("click", onResetClick);
+  els.viewerBack.addEventListener("click", openParticipants);
+  els.viewerClose.addEventListener("click", closeViewer);
+  els.overlay.addEventListener("click", function (e) {
+    if (e.target === els.overlay) closeViewer();
+  });
+
+  initCloud();
 
   var saved = loadState();
   if (saved && saved.playerName) {
@@ -334,8 +349,116 @@ function autoSave() {
 }
 
 function onSaveClick() {
-  var ok = saveState(state);
-  showFeedback(ok ? "Pronósticos guardados ✓" : "No se pudo guardar", ok);
+  var localOk = saveState(state);
+  if (!localOk) {
+    showFeedback("No se pudo guardar localmente", false);
+    return;
+  }
+  if (!cloudReady()) {
+    showFeedback("Guardado local ✓ (nube no disponible)", true);
+    return;
+  }
+  els.btnSave.disabled = true;
+  var prev = els.btnSave.textContent;
+  els.btnSave.textContent = "Guardando…";
+  cloudSave(state.playerName, state.predictions).then(function (res) {
+    els.btnSave.disabled = false;
+    els.btnSave.textContent = prev;
+    if (res.ok) {
+      showFeedback("Pronósticos guardados y compartidos ✓", true);
+    } else {
+      showFeedback("Guardado local ✓, pero falló la nube: " + res.error, false);
+    }
+  });
+}
+
+// ---------- Participantes (visor de pronósticos compartidos) ----------
+
+function openParticipants() {
+  showOverlay();
+  els.viewerTitle.textContent = "Participantes";
+  els.viewerBack.hidden = true;
+
+  if (!cloudReady()) {
+    els.viewerBody.innerHTML = '<p class="notice visible">La conexión con la nube no está ' +
+      "disponible. Revisá la configuración de Supabase.</p>";
+    return;
+  }
+
+  els.viewerBody.innerHTML = '<p class="viewer-loading">Cargando participantes…</p>';
+  cloudListPlayers().then(function (res) {
+    if (!res.ok) {
+      els.viewerBody.innerHTML = '<p class="notice visible">No se pudo cargar la lista: ' +
+        escapeHTML(res.error) + "</p>";
+      return;
+    }
+    if (!res.players.length) {
+      els.viewerBody.innerHTML = '<p class="viewer-empty">Todavía no hay pronósticos guardados. ' +
+        "¡Sé el primero en tocar “Guardar pronósticos”!</p>";
+      return;
+    }
+    renderParticipantsList(res.players);
+  });
+}
+
+function renderParticipantsList(players) {
+  var html = '<ul class="participants-list">';
+  players.forEach(function (p) {
+    var isMe = p.player_name === state.playerName;
+    html += '<li><button type="button" class="participant-item" data-name="' +
+      escapeHTML(p.player_name) + '">' +
+      '<span class="participant-name">' + escapeHTML(p.player_name) +
+      (isMe ? ' <span class="you-badge">vos</span>' : "") + "</span>" +
+      '<span class="participant-date">' + formatDate(p.updated_at) + "</span>" +
+      "</button></li>";
+  });
+  html += "</ul>";
+  els.viewerBody.innerHTML = html;
+
+  els.viewerBody.querySelectorAll(".participant-item").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      viewParticipant(btn.dataset.name);
+    });
+  });
+}
+
+function viewParticipant(name) {
+  els.viewerTitle.textContent = name;
+  els.viewerBack.hidden = false;
+  els.viewerBody.innerHTML = '<p class="viewer-loading">Cargando pronóstico de ' +
+    escapeHTML(name) + "…</p>";
+
+  cloudGetPlayer(name).then(function (res) {
+    if (!res.ok || !res.data) {
+      els.viewerBody.innerHTML = '<p class="notice visible">No se pudo cargar el pronóstico: ' +
+        escapeHTML(res.error || "sin datos") + "</p>";
+      return;
+    }
+    renderReadOnlyPredictions(els.viewerBody, res.data.data || {});
+  });
+}
+
+function showOverlay() {
+  els.overlay.classList.add("open");
+  els.overlay.setAttribute("aria-hidden", "false");
+  document.body.classList.add("overlay-open");
+}
+
+function closeViewer() {
+  els.overlay.classList.remove("open");
+  els.overlay.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("overlay-open");
+}
+
+function formatDate(iso) {
+  if (!iso) return "";
+  try {
+    var d = new Date(iso);
+    return d.toLocaleDateString("es", { day: "2-digit", month: "short" }) + " " +
+      d.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" });
+  } catch (e) {
+    return "";
+  }
 }
 
 function showFeedback(msg, ok) {
