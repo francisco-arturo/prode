@@ -21,8 +21,7 @@ pronosticar la **fase de grupos** y toda la **fase eliminatoria** del Mundial 20
 - Persistencia local con `localStorage`: tus pronósticos no se pierden al recargar.
 - Botón para guardar y opción para empezar de nuevo.
 
-> Nota: por ahora no hay cálculo de puntos contra resultados reales; solo se registran y
-> muestran tus pronósticos.
+> Nota: los puntos se calculan contra resultados oficiales que carga el admin.
 
 ## Cómo usarla
 

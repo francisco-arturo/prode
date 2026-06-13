@@ -166,8 +166,7 @@ function resolveBracket(predictions) {
       var ag = Number(pred.away);
       if (hg > ag) { info.winner = home; info.loser = away; info.complete = true; }
       else if (ag > hg) { info.winner = away; info.loser = home; info.complete = true; }
-      else if (pred.penaltyWinner === "home") { info.winner = home; info.loser = away; info.complete = true; }
-      else if (pred.penaltyWinner === "away") { info.winner = away; info.loser = home; info.complete = true; }
+      else { info.complete = true; }
     }
 
     resolved[matchId] = info;

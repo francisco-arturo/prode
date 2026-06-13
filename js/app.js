@@ -1,10 +1,50 @@
 // UI y orquestación del PRODE Mundial 2026.
 
-var state = { playerName: "", predictions: {} };
+var state = { playerName: "", predictions: {}, isAdmin: false };
+
+// Resultados oficiales cargados desde la nube (los usa el leaderboard y el admin).
+var officialResults = {};
+
+// Handler dinámico del botón "← Volver" del overlay.
+var viewerBackHandler = null;
 
 var els = {};
+var appInitialized = false;
 
 document.addEventListener("DOMContentLoaded", function () {
+  showAdThenInit();
+});
+
+function showAdThenInit() {
+  els.adOverlay = document.getElementById("ad-overlay");
+  els.adClose = document.getElementById("ad-close");
+
+  function closeAd() {
+    if (els.adOverlay) {
+      els.adOverlay.classList.remove("open");
+      els.adOverlay.setAttribute("aria-hidden", "true");
+    }
+    document.body.classList.remove("ad-open");
+    initApp();
+  }
+
+  if (!els.adOverlay || !els.adClose) {
+    initApp();
+    return;
+  }
+
+  els.adOverlay.classList.add("open");
+  els.adOverlay.setAttribute("aria-hidden", "false");
+  document.body.classList.add("ad-open");
+  els.adClose.addEventListener("click", closeAd);
+  els.adOverlay.addEventListener("click", function (e) {
+    if (e.target === els.adOverlay) closeAd();
+  });
+}
+
+function initApp() {
+  if (appInitialized) return;
+  appInitialized = true;
   els.screenWelcome = document.getElementById("screen-welcome");
   els.screenMain = document.getElementById("screen-main");
   els.welcomeForm = document.getElementById("welcome-form");
@@ -14,7 +54,9 @@ document.addEventListener("DOMContentLoaded", function () {
   els.knockoutContainer = document.getElementById("knockout-container");
   els.knockoutNotice = document.getElementById("knockout-notice");
   els.btnSave = document.getElementById("btn-save");
+  els.btnLeaderboard = document.getElementById("btn-leaderboard");
   els.btnParticipants = document.getElementById("btn-participants");
+  els.btnAdmin = document.getElementById("btn-admin");
   els.btnReset = document.getElementById("btn-reset");
   els.saveFeedback = document.getElementById("save-feedback");
 
@@ -26,9 +68,13 @@ document.addEventListener("DOMContentLoaded", function () {
 
   els.welcomeForm.addEventListener("submit", onWelcomeSubmit);
   els.btnSave.addEventListener("click", onSaveClick);
+  els.btnLeaderboard.addEventListener("click", openLeaderboard);
   els.btnParticipants.addEventListener("click", openParticipants);
+  els.btnAdmin.addEventListener("click", openAdmin);
   els.btnReset.addEventListener("click", onResetClick);
-  els.viewerBack.addEventListener("click", openParticipants);
+  els.viewerBack.addEventListener("click", function () {
+    if (viewerBackHandler) viewerBackHandler();
+  });
   els.viewerClose.addEventListener("click", closeViewer);
   els.overlay.addEventListener("click", function (e) {
     if (e.target === els.overlay) closeViewer();
@@ -42,27 +88,161 @@ document.addEventListener("DOMContentLoaded", function () {
     if (!state.predictions) state.predictions = {};
     enterMainScreen();
   }
-});
+}
+
 
 function onWelcomeSubmit(e) {
   e.preventDefault();
+  if (!appInitialized) initApp();
+
   var name = (els.playerName.value || "").trim();
   if (!name) {
     els.playerName.focus();
     return;
   }
+
+  if (name.toLowerCase() === ADMIN_NAME.toLowerCase()) {
+    askAdminPin().then(function (ok) {
+      if (!ok) return;
+      state.playerName = ADMIN_NAME;
+      state.isAdmin = true;
+      saveState(state);
+      enterMainScreen();
+    });
+    return;
+  }
+
   state.playerName = name;
+  state.isAdmin = false;
   saveState(state);
   enterMainScreen();
 }
 
+// Modal PIN en lugar de window.prompt (bloqueado en muchos navegadores).
+function askAdminPin() {
+  return new Promise(function (resolve) {
+    var overlay = document.getElementById("pin-overlay");
+    var input = document.getElementById("pin-input");
+    var errorEl = document.getElementById("pin-error");
+    var btnOk = document.getElementById("pin-confirm");
+    var btnCancel = document.getElementById("pin-cancel");
+
+    if (!overlay || !input || !btnOk || !btnCancel) {
+      resolve(false);
+      return;
+    }
+
+    function cleanup() {
+      overlay.classList.remove("open");
+      overlay.setAttribute("aria-hidden", "true");
+      btnOk.removeEventListener("click", onConfirm);
+      btnCancel.removeEventListener("click", onCancel);
+      input.removeEventListener("keydown", onKey);
+      overlay.removeEventListener("click", onBackdrop);
+    }
+
+    function onCancel() {
+      cleanup();
+      resolve(false);
+    }
+
+    function onConfirm() {
+      if (input.value.trim() !== ADMIN_PIN) {
+        errorEl.hidden = false;
+        input.value = "";
+        input.focus();
+        return;
+      }
+      cleanup();
+      resolve(true);
+    }
+
+    function onKey(ev) {
+      if (ev.key === "Enter") onConfirm();
+      if (ev.key === "Escape") onCancel();
+    }
+
+    function onBackdrop(ev) {
+      if (ev.target === overlay) onCancel();
+    }
+
+    errorEl.hidden = true;
+    input.value = "";
+    overlay.classList.add("open");
+    overlay.setAttribute("aria-hidden", "false");
+    setTimeout(function () { input.focus(); }, 50);
+
+    btnOk.addEventListener("click", onConfirm);
+    btnCancel.addEventListener("click", onCancel);
+    input.addEventListener("keydown", onKey);
+    overlay.addEventListener("click", onBackdrop);
+  });
+}
+
 function enterMainScreen() {
   els.playerDisplay.textContent = state.playerName;
+  els.btnAdmin.hidden = !state.isAdmin;
   els.screenWelcome.classList.remove("active");
   els.screenMain.classList.add("active");
-  renderGroups();
-  updateStandings();
-  renderKnockout();
+  refreshOfficial()
+    .then(syncPredictionsFromCloud)
+    .then(function () {
+      renderGroups();
+      updateStandings();
+      renderKnockout();
+    });
+}
+
+function refreshMainAfterOfficial() {
+  if (!els.screenMain || !els.screenMain.classList.contains("active")) return;
+  refreshOfficial()
+    .then(syncPredictionsFromCloud)
+    .then(function () {
+      renderGroups();
+      updateStandings();
+      renderKnockout();
+    });
+}
+
+function syncPredictionsFromCloud() {
+  if (!cloudReady() || !state.playerName) return Promise.resolve();
+  return cloudGetPlayer(state.playerName).then(function (res) {
+    if (!res.ok || !res.data || !res.data.data) return;
+    mergeCloudPredictions(res.data.data);
+    saveState(state);
+  });
+}
+
+function mergeCloudPredictions(cloudData) {
+  Object.keys(cloudData).forEach(function (mid) {
+    var cp = cloudData[mid];
+    if (!cp || typeof cp !== "object") return;
+    if (!state.predictions[mid]) {
+      state.predictions[mid] = { home: cp.home, away: cp.away };
+      return;
+    }
+    var lp = state.predictions[mid];
+    if (lp.home === null || lp.home === undefined) {
+      if (cp.home !== null && cp.home !== undefined) lp.home = cp.home;
+    }
+    if (lp.away === null || lp.away === undefined) {
+      if (cp.away !== null && cp.away !== undefined) lp.away = cp.away;
+    }
+  });
+}
+
+function isMatchLocked(matchId) {
+  return isMatchOfficiallySet(officialResults, matchId);
+}
+
+// En partidos bloqueados mostramos el resultado oficial; si no, el pronóstico del jugador.
+function scoresForMatchDisplay(matchId, locked) {
+  if (locked) {
+    var official = officialResults[matchId] || {};
+    return { home: official.home, away: official.away };
+  }
+  var pred = state.predictions[matchId] || {};
+  return { home: pred.home, away: pred.away };
 }
 
 // ---------- Helpers de equipo ----------
@@ -116,22 +296,26 @@ function renderGroups() {
 
 function buildGroupMatchRow(m) {
   var row = document.createElement("div");
-  row.className = "match-row";
+  var locked = isMatchLocked(m.id);
+  row.className = "match-row" + (locked ? " locked" : "");
 
-  var pred = state.predictions[m.id] || {};
+  var scores = scoresForMatchDisplay(m.id, locked);
 
   row.innerHTML =
     '<div class="match-side home">' + teamHTML(m.home) + "</div>" +
     '<div class="score-box">' +
-      scoreInputHTML(m.id, "home", pred.home) +
+      scoreFieldHTML(m.id, "home", scores.home, locked) +
       '<span class="score-sep">-</span>' +
-      scoreInputHTML(m.id, "away", pred.away) +
+      scoreFieldHTML(m.id, "away", scores.away, locked) +
+      (locked ? '<span class="match-lock" title="Resultado oficial">🔒</span>' : "") +
     "</div>" +
     '<div class="match-side away">' + teamHTML(m.away) + "</div>";
 
-  row.querySelectorAll("input").forEach(function (inp) {
-    inp.addEventListener("input", onGroupInput);
-  });
+  if (!locked) {
+    row.querySelectorAll("input").forEach(function (inp) {
+      inp.addEventListener("input", onGroupInput);
+    });
+  }
   return row;
 }
 
@@ -141,8 +325,19 @@ function scoreInputHTML(matchId, side, value) {
     'data-match="' + matchId + '" data-side="' + side + '" value="' + v + '" aria-label="Goles" />';
 }
 
+function scoreDisplayHTML(value, official) {
+  var v = (value === 0 || value) ? String(value) : "–";
+  var cls = "score-display" + (official ? " score-official" : "");
+  return '<span class="' + cls + '" aria-label="Goles">' + escapeHTML(v) + "</span>";
+}
+
+function scoreFieldHTML(matchId, side, value, locked) {
+  return locked ? scoreDisplayHTML(value, true) : scoreInputHTML(matchId, side, value);
+}
+
 function onGroupInput(e) {
   var inp = e.target;
+  if (isMatchLocked(inp.dataset.match)) return;
   applyScore(inp.dataset.match, inp.dataset.side, inp.value);
   autoSave();
   updateStandings();
@@ -150,6 +345,7 @@ function onGroupInput(e) {
 }
 
 function applyScore(matchId, side, rawValue) {
+  if (isMatchLocked(matchId)) return;
   if (!state.predictions[matchId]) state.predictions[matchId] = { home: null, away: null };
   var p = state.predictions[matchId];
   var val = rawValue === "" ? null : Math.max(0, parseInt(rawValue, 10));
@@ -242,10 +438,11 @@ function renderKnockout() {
 
 function buildKnockoutCard(def, info) {
   var card = document.createElement("div");
-  card.className = "ko-card";
+  var locked = isMatchLocked(def.id);
+  card.className = "ko-card" + (locked ? " locked" : "");
 
   var num = def.id.split("-")[1];
-  var pred = state.predictions[def.id] || {};
+  var scores = scoresForMatchDisplay(def.id, locked);
   var bothDefined = info.homeDefined && info.awayDefined;
 
   var homeLabel = info.home || slotLabel(def.home);
@@ -254,36 +451,23 @@ function buildKnockoutCard(def, info) {
   var homeWin = info.complete && info.winner === info.home;
   var awayWin = info.complete && info.winner === info.away;
 
-  var html = '<div class="ko-num">Partido ' + num + "</div>";
+  var html = '<div class="ko-num">Partido ' + num + (locked ? ' 🔒' : '') + "</div>";
 
   html += '<div class="ko-row ' + (homeWin ? "winner" : "") + '">' +
     koTeamHTML(info.home, homeLabel) +
-    (bothDefined ? scoreInputHTML(def.id, "home", pred.home) : "") +
+    (bothDefined ? scoreFieldHTML(def.id, "home", scores.home, locked) : "") +
     "</div>";
 
   html += '<div class="ko-row ' + (awayWin ? "winner" : "") + '">' +
     koTeamHTML(info.away, awayLabel) +
-    (bothDefined ? scoreInputHTML(def.id, "away", pred.away) : "") +
+    (bothDefined ? scoreFieldHTML(def.id, "away", scores.away, locked) : "") +
     "</div>";
-
-  // Selector de penales: visible si ambos definidos y empate cargado.
-  if (bothDefined && isTie(pred)) {
-    html += '<div class="penalty">' +
-      '<span class="penalty-label">Empate — ¿quién gana por penales?</span>' +
-      '<div class="penalty-options">' +
-        penaltyBtnHTML(def.id, "home", info.home, pred.penaltyWinner === "home") +
-        penaltyBtnHTML(def.id, "away", info.away, pred.penaltyWinner === "away") +
-      "</div></div>";
-  }
 
   card.innerHTML = html;
 
-  if (bothDefined) {
+  if (bothDefined && !locked) {
     card.querySelectorAll("input.score-input").forEach(function (inp) {
       inp.addEventListener("change", onKnockoutChange);
-    });
-    card.querySelectorAll("button.penalty-btn").forEach(function (btn) {
-      btn.addEventListener("click", onPenaltyClick);
     });
   }
   return card;
@@ -295,18 +479,6 @@ function koTeamHTML(team, label) {
       '</span><span class="team-name">' + escapeHTML(team) + "</span></span>";
   }
   return '<span class="team undefined">' + escapeHTML(label) + "</span>";
-}
-
-function penaltyBtnHTML(matchId, side, team, active) {
-  return '<button type="button" class="penalty-btn ' + (active ? "active" : "") +
-    '" data-match="' + matchId + '" data-side="' + side + '">' +
-    '<span class="flag">' + teamFlag(team) + "</span> " + escapeHTML(team) + " (pen.)</button>";
-}
-
-function isTie(pred) {
-  return pred && pred.home !== null && pred.home !== undefined &&
-    pred.away !== null && pred.away !== undefined &&
-    Number(pred.home) === Number(pred.away);
 }
 
 function slotLabel(ref) {
@@ -323,21 +495,8 @@ function slotLabel(ref) {
 
 function onKnockoutChange(e) {
   var inp = e.target;
+  if (isMatchLocked(inp.dataset.match)) return;
   applyScore(inp.dataset.match, inp.dataset.side, inp.value);
-  // Si ya no hay empate, limpiar el ganador por penales.
-  var pred = state.predictions[inp.dataset.match];
-  if (!isTie(pred) && pred) delete pred.penaltyWinner;
-  autoSave();
-  renderKnockout();
-}
-
-function onPenaltyClick(e) {
-  var btn = e.currentTarget;
-  var matchId = btn.dataset.match;
-  var side = btn.dataset.side;
-  var pred = state.predictions[matchId];
-  if (!pred) return;
-  pred.penaltyWinner = (pred.penaltyWinner === side) ? null : side;
   autoSave();
   renderKnockout();
 }
@@ -377,7 +536,7 @@ function onSaveClick() {
 function openParticipants() {
   showOverlay();
   els.viewerTitle.textContent = "Participantes";
-  els.viewerBack.hidden = true;
+  setViewerBack(null);
 
   if (!cloudReady()) {
     els.viewerBody.innerHTML = '<p class="notice visible">La conexión con la nube no está ' +
@@ -424,7 +583,7 @@ function renderParticipantsList(players) {
 
 function viewParticipant(name) {
   els.viewerTitle.textContent = name;
-  els.viewerBack.hidden = false;
+  setViewerBack(openParticipants);
   els.viewerBody.innerHTML = '<p class="viewer-loading">Cargando pronóstico de ' +
     escapeHTML(name) + "…</p>";
 
@@ -448,6 +607,163 @@ function closeViewer() {
   els.overlay.classList.remove("open");
   els.overlay.setAttribute("aria-hidden", "true");
   document.body.classList.remove("overlay-open");
+  if (els.screenMain.classList.contains("active")) {
+    refreshOfficial()
+      .then(syncPredictionsFromCloud)
+      .then(function () {
+        renderGroups();
+        updateStandings();
+        renderKnockout();
+      });
+  }
+}
+
+function setViewerBack(handler) {
+  viewerBackHandler = handler || null;
+  els.viewerBack.hidden = !handler;
+}
+
+// ---------- Puntos: resultados oficiales, banner y tabla ----------
+
+function refreshOfficial() {
+  if (!cloudReady()) {
+    officialResults = {};
+    return Promise.resolve(officialResults);
+  }
+  return cloudGetOfficial().then(function (res) {
+    officialResults = (res && res.ok) ? (res.data || {}) : {};
+    return officialResults;
+  });
+}
+
+function openLeaderboard() {
+  showOverlay();
+  els.viewerTitle.textContent = "Tabla de puntos";
+  setViewerBack(null);
+
+  if (!cloudReady()) {
+    els.viewerBody.innerHTML = '<p class="notice visible">La nube no está disponible; ' +
+      "no se puede calcular la tabla de puntos.</p>";
+    return;
+  }
+
+  els.viewerBody.innerHTML = '<p class="viewer-loading">Calculando puntos…</p>';
+  Promise.all([cloudGetAllPredictions(), refreshOfficial()]).then(function (vals) {
+    var pl = vals[0];
+    if (!pl.ok) {
+      els.viewerBody.innerHTML = '<p class="notice visible">No se pudo cargar: ' +
+        escapeHTML(pl.error) + "</p>";
+      return;
+    }
+    renderLeaderboard(pl.players);
+  });
+}
+
+function renderLeaderboard(players) {
+  var played = countOfficialPlayed(officialResults);
+  var board = buildLeaderboard(players, officialResults);
+  var playersByName = {};
+  players.forEach(function (p) { playersByName[p.name] = p; });
+
+  var html = "";
+  if (!played) {
+    html += '<p class="notice visible">Todavía no se cargaron resultados oficiales, ' +
+      "así que todos están en 0. Cuando el admin cargue resultados, acá vas a ver el ranking.</p>";
+  } else {
+    html += '<p class="lb-meta">Sobre ' + played + " partido(s) con resultado oficial.</p>";
+  }
+
+  if (!board.length) {
+    html += '<p class="viewer-empty">Todavía no hay participantes.</p>';
+    els.viewerBody.innerHTML = html;
+    return;
+  }
+
+  html += '<table class="leaderboard"><thead><tr>' +
+    "<th>#</th><th class=\"lb-name\">Jugador</th><th>Pts</th><th>+1</th><th>Exactos</th>" +
+    "</tr></thead><tbody>";
+  board.forEach(function (r) {
+    var isMe = r.name === state.playerName;
+    html += '<tr class="' + (isMe ? "lb-me" : "") + '" data-name="' + escapeHTML(r.name) + '">' +
+      '<td class="lb-rank">' + r.rank + "</td>" +
+      '<td class="lb-name">' + escapeHTML(r.name) +
+      (isMe ? ' <span class="you-badge">vos</span>' : "") + "</td>" +
+      '<td class="lb-pts">' + r.total + "</td>" +
+      "<td>" + r.outcomeHits + "</td>" +
+      "<td>" + r.exactScoreHits + "</td></tr>";
+  });
+  html += "</tbody></table>";
+  html += '<p class="lb-hint">+1 = resultado correcto · +3 = marcador exacto (ambos goles). ' +
+    "Tocá un jugador para el detalle.</p>";
+
+  els.viewerBody.innerHTML = html;
+
+  els.viewerBody.querySelectorAll("tr[data-name]").forEach(function (tr) {
+    tr.addEventListener("click", function () {
+      var p = playersByName[tr.dataset.name];
+      if (p) viewPlayerBreakdown(p);
+    });
+  });
+}
+
+function viewPlayerBreakdown(player) {
+  els.viewerTitle.textContent = "Puntos de " + player.name;
+  setViewerBack(openLeaderboard);
+
+  var s = scorePlayer(player.data, officialResults);
+  var bracket = resolveBracket(officialResults);
+
+  var html = '<div class="bd-summary"><span class="pb-total">' + s.total + ' pts</span>' +
+    '<span class="pb-detail">' + formatPlayerStats(s) + ' · ' + s.played + ' partidos</span></div>';
+
+  // Recorremos todos los partidos (grupos + eliminatorias) que tengan resultado oficial.
+  var allMatches = [];
+  GROUPS.forEach(function (g) {
+    g.matches.forEach(function (m) {
+      allMatches.push({ id: m.id, home: m.home, away: m.away, phase: "Grupo " + g.id });
+    });
+  });
+  KNOCKOUT.forEach(function (m) {
+    var info = bracket.matches[m.id];
+    allMatches.push({ id: m.id, home: info.home, away: info.away, phase: m.round });
+  });
+
+  var rows = allMatches.filter(function (mm) {
+    return officialResults[mm.id] && hasResult(officialResults[mm.id]);
+  });
+
+  if (!rows.length) {
+    html += '<p class="viewer-empty">Sin resultados oficiales cargados aún.</p>';
+    els.viewerBody.innerHTML = html;
+    return;
+  }
+
+  html += '<table class="breakdown"><thead><tr>' +
+    "<th class=\"bd-match\">Partido</th><th>Tu pick</th><th>Real</th><th>Desglose</th><th>Pts</th>" +
+    "</tr></thead><tbody>";
+  rows.forEach(function (mm) {
+    var pred = (player.data || {})[mm.id];
+    var actual = officialResults[mm.id];
+    var sc = scoreMatch(pred, actual);
+    var ptcls = sc.exactScore ? "pt-exact" : (sc.outcome ? "pt-result" : "pt-none");
+    var label = (mm.home || "?") + " vs " + (mm.away || "?");
+    html += "<tr>" +
+      '<td class="bd-match"><span class="bd-phase">' + escapeHTML(mm.phase) + "</span>" +
+      '<span class="bd-teams">' + escapeHTML(label) + "</span></td>" +
+      "<td>" + pickStr(pred) + "</td>" +
+      "<td>" + pickStr(actual) + "</td>" +
+      '<td class="bd-breakdown">' + formatMatchPoints(sc) + "</td>" +
+      '<td class="bd-pts ' + ptcls + '">' + sc.points + "</td></tr>";
+  });
+  html += "</tbody></table>";
+  els.viewerBody.innerHTML = html;
+}
+
+function pickStr(p) {
+  if (p && p.home !== null && p.home !== undefined && p.away !== null && p.away !== undefined) {
+    return p.home + "-" + p.away;
+  }
+  return "–";
 }
 
 function formatDate(iso) {

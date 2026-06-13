@@ -118,12 +118,6 @@ function renderReadOnlyKnockoutCard(def, info, pred) {
     roKoTeam(info.away, def.away) +
     '<span class="ko-score">' + awayScore + "</span></div>";
 
-  if (bothDefined && pred.home !== null && pred.home !== undefined &&
-      Number(pred.home) === Number(pred.away) && pred.penaltyWinner) {
-    var penTeam = pred.penaltyWinner === "home" ? info.home : info.away;
-    html += '<div class="penalty-note">Gana por penales: ' + escapeHTML(penTeam || "") + "</div>";
-  }
-
   html += "</div>";
   return html;
 }

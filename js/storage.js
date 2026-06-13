@@ -21,6 +21,7 @@ function saveState(state) {
     var payload = {
       playerName: state.playerName || "",
       predictions: state.predictions || {},
+      isAdmin: !!state.isAdmin,
       savedAt: new Date().toISOString()
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
