@@ -5,6 +5,9 @@ var state = { playerName: "", predictions: {}, isAdmin: false };
 // Resultados oficiales cargados desde la nube (los usa el leaderboard y el admin).
 var officialResults = {};
 
+// Fecha seleccionada en "Partidos del día" (homepage).
+var selectedDayDate = null;
+
 // Handler dinámico del botón "← Volver" del overlay.
 var viewerBackHandler = null;
 
@@ -53,6 +56,11 @@ function initApp() {
   els.groupsContainer = document.getElementById("groups-container");
   els.knockoutContainer = document.getElementById("knockout-container");
   els.knockoutNotice = document.getElementById("knockout-notice");
+  els.todaySection = document.getElementById("today-section");
+  els.todayMeta = document.getElementById("today-meta");
+  els.todayContainer = document.getElementById("today-container");
+  els.dayPrev = document.getElementById("day-prev");
+  els.dayNext = document.getElementById("day-next");
   els.btnSave = document.getElementById("btn-save");
   els.btnLeaderboard = document.getElementById("btn-leaderboard");
   els.btnParticipants = document.getElementById("btn-participants");
@@ -72,6 +80,8 @@ function initApp() {
   els.btnParticipants.addEventListener("click", openParticipants);
   els.btnAdmin.addEventListener("click", openAdmin);
   els.btnReset.addEventListener("click", onResetClick);
+  if (els.dayPrev) els.dayPrev.addEventListener("click", function () { shiftSelectedDay(-1); });
+  if (els.dayNext) els.dayNext.addEventListener("click", function () { shiftSelectedDay(1); });
   els.viewerBack.addEventListener("click", function () {
     if (viewerBackHandler) viewerBackHandler();
   });
@@ -184,9 +194,11 @@ function enterMainScreen() {
   els.btnAdmin.hidden = !state.isAdmin;
   els.screenWelcome.classList.remove("active");
   els.screenMain.classList.add("active");
+  selectedDayDate = null;
   refreshOfficial()
     .then(syncPredictionsFromCloud)
     .then(function () {
+      renderTodayMatches();
       renderGroups();
       updateStandings();
       renderKnockout();
@@ -198,6 +210,7 @@ function refreshMainAfterOfficial() {
   refreshOfficial()
     .then(syncPredictionsFromCloud)
     .then(function () {
+      renderTodayMatches();
       renderGroups();
       updateStandings();
       renderKnockout();
@@ -261,6 +274,67 @@ function teamHTML(name) {
 function escapeHTML(s) {
   return String(s).replace(/[&<>"']/g, function (c) {
     return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+  });
+}
+
+// ---------- Partidos del día ----------
+
+function ensureSelectedDayDate() {
+  if (!selectedDayDate) selectedDayDate = getDefaultScheduleDate();
+}
+
+function shiftSelectedDay(delta) {
+  ensureSelectedDayDate();
+  var next = shiftScheduleDate(selectedDayDate, delta);
+  if (next < TOURNAMENT_START || next > TOURNAMENT_END) return;
+  selectedDayDate = next;
+  renderTodayMatches();
+}
+
+function updateDayNavButtons() {
+  ensureSelectedDayDate();
+  if (els.dayPrev) els.dayPrev.disabled = selectedDayDate <= TOURNAMENT_START;
+  if (els.dayNext) els.dayNext.disabled = selectedDayDate >= TOURNAMENT_END;
+}
+
+function renderTodayMatches() {
+  if (!els.todayContainer) return;
+
+  ensureSelectedDayDate();
+  var day = getMatchesForSelectedDay(selectedDayDate, state.predictions);
+  els.todayContainer.innerHTML = "";
+
+  if (els.todaySection) els.todaySection.hidden = false;
+  if (els.todayMeta) {
+    els.todayMeta.textContent = formatScheduleDayMeta(day.date, day.matches.length, day.isToday);
+  }
+  updateDayNavButtons();
+
+  if (!day.matches.length) {
+    els.todayContainer.innerHTML = '<p class="today-empty">No hay partidos este día.</p>';
+    return;
+  }
+
+  var bracket = resolveBracket(state.predictions);
+  day.matches.forEach(function (entry) {
+    var card = document.createElement("div");
+    card.className = "today-match-card";
+
+    var head = document.createElement("div");
+    head.className = "today-match-head";
+    head.innerHTML =
+      '<span class="today-match-time">' + formatScheduleTime(entry.time) + "</span>" +
+      '<span class="today-match-phase">' + escapeHTML(entry.phase) + "</span>";
+    card.appendChild(head);
+
+    if (entry.type === "group") {
+      card.appendChild(buildGroupMatchRow(entry.groupMatch));
+    } else {
+      var info = entry.koInfo || bracket.matches[entry.id];
+      card.appendChild(buildKnockoutCard(entry.koDef, info));
+    }
+
+    els.todayContainer.appendChild(card);
   });
 }
 
@@ -611,6 +685,7 @@ function closeViewer() {
     refreshOfficial()
       .then(syncPredictionsFromCloud)
       .then(function () {
+        renderTodayMatches();
         renderGroups();
         updateStandings();
         renderKnockout();

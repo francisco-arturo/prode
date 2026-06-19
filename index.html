@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PRODE Mundial 2026</title>
-  <link rel="stylesheet" href="css/styles.css?v=3" />
+  <link rel="stylesheet" href="css/styles.css?v=5" />
 </head>
 <body>
   <!-- Publicidad al abrir la app (cada visita) -->
@@ -63,6 +63,16 @@
     </header>
 
     <main class="content">
+      <section id="today-section" class="phase today-phase">
+        <h2 class="phase-title">Partidos del día</h2>
+        <div class="day-nav">
+          <button type="button" id="day-prev" class="btn btn-ghost day-nav-btn" aria-label="Día anterior">←</button>
+          <p id="today-meta" class="today-meta day-nav-label"></p>
+          <button type="button" id="day-next" class="btn btn-ghost day-nav-btn" aria-label="Día siguiente">→</button>
+        </div>
+        <div id="today-container" class="today-matches"></div>
+      </section>
+
       <section class="phase">
         <h2 class="phase-title">Fase de Grupos</h2>
         <div id="groups-container" class="groups-grid"></div>
@@ -89,15 +99,16 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/config.js?v=3"></script>
-  <script src="js/data.js?v=3"></script>
-  <script src="js/annex-c.js?v=3"></script>
-  <script src="js/bracket.js?v=3"></script>
-  <script src="js/scoring.js?v=3"></script>
-  <script src="js/storage.js?v=3"></script>
-  <script src="js/cloud.js?v=3"></script>
-  <script src="js/app.js?v=3"></script>
-  <script src="js/viewer.js?v=3"></script>
-  <script src="js/admin.js?v=3"></script>
+  <script src="js/config.js?v=5"></script>
+  <script src="js/data.js?v=5"></script>
+  <script src="js/schedule.js?v=5"></script>
+  <script src="js/annex-c.js?v=5"></script>
+  <script src="js/bracket.js?v=5"></script>
+  <script src="js/scoring.js?v=5"></script>
+  <script src="js/storage.js?v=5"></script>
+  <script src="js/cloud.js?v=5"></script>
+  <script src="js/app.js?v=5"></script>
+  <script src="js/viewer.js?v=5"></script>
+  <script src="js/admin.js?v=5"></script>
 </body>
 </html>

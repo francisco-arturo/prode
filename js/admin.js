@@ -3,10 +3,13 @@
 // globales (teamFlag, escapeHTML, slotLabel, scoreInputHTML,
 // resolveBracket, GROUPS, KNOCKOUT, KNOCKOUT_ROUNDS).
 
+var adminSelectedDayDate = null;
+
 function openAdmin() {
   showOverlay();
   els.viewerTitle.textContent = "Resultados oficiales";
   setViewerBack(null);
+  adminSelectedDayDate = null;
 
   if (!cloudReady()) {
     els.viewerBody.innerHTML = '<p class="notice visible">La nube no está disponible; ' +
@@ -29,6 +32,8 @@ function renderAdmin() {
     '<span id="admin-feedback" class="save-feedback"></span>' +
     "</div></div>";
 
+  html += buildTodaySectionAdminHTML();
+
   // --- Grupos ---
   html += '<h3 class="viewer-section-title">Fase de Grupos</h3>';
   html += '<div class="groups-grid">';
@@ -36,15 +41,7 @@ function renderAdmin() {
     html += '<div class="group-card"><h3 class="group-title">Grupo ' + group.id + "</h3>";
     html += '<div class="group-matches">';
     group.matches.forEach(function (m) {
-      var r = officialResults[m.id] || {};
-      html += '<div class="match-row">' +
-        '<div class="match-side home">' + adminTeamHTML(m.home) + "</div>" +
-        '<div class="score-box">' +
-          adminScoreInput(m.id, "home", r.home) +
-          '<span class="score-sep">-</span>' +
-          adminScoreInput(m.id, "away", r.away) +
-        "</div>" +
-        '<div class="match-side away">' + adminTeamHTML(m.away) + "</div></div>";
+      html += adminGroupMatchRowHTML(m);
     });
     html += "</div></div>";
   });
@@ -72,6 +69,60 @@ function renderAdmin() {
 
   els.viewerBody.innerHTML = html;
   attachAdminListeners();
+}
+
+function buildTodaySectionAdminHTML() {
+  if (!adminSelectedDayDate) adminSelectedDayDate = getDefaultScheduleDate();
+
+  var day = getMatchesForSelectedDay(adminSelectedDayDate, officialResults);
+  var bracket = resolveBracket(officialResults);
+  var prevDisabled = adminSelectedDayDate <= TOURNAMENT_START ? " disabled" : "";
+  var nextDisabled = adminSelectedDayDate >= TOURNAMENT_END ? " disabled" : "";
+
+  var html = '<section class="today-section admin-today">' +
+    '<div class="day-nav">' +
+      '<button type="button" class="btn btn-ghost day-nav-btn admin-day-prev"' + prevDisabled +
+        ' aria-label="Día anterior">←</button>' +
+      '<p class="today-meta day-nav-label admin-day-label">' +
+        escapeHTML(formatScheduleDayMeta(day.date, day.matches.length, day.isToday)) +
+      "</p>" +
+      '<button type="button" class="btn btn-ghost day-nav-btn admin-day-next"' + nextDisabled +
+        ' aria-label="Día siguiente">→</button>' +
+    "</div>" +
+    '<div class="today-matches admin-day-matches">';
+
+  if (!day.matches.length) {
+    html += '<p class="today-empty">No hay partidos este día.</p>';
+  } else {
+    day.matches.forEach(function (entry) {
+      html += '<div class="today-match-card">' +
+        '<div class="today-match-head">' +
+          '<span class="today-match-time">' + formatScheduleTime(entry.time) + "</span>" +
+          '<span class="today-match-phase">' + escapeHTML(entry.phase) + "</span>" +
+        "</div>";
+      if (entry.type === "group") {
+        html += adminGroupMatchRowHTML(entry.groupMatch);
+      } else {
+        html += adminKnockoutCard(entry.koDef, bracket.matches[entry.id]);
+      }
+      html += "</div>";
+    });
+  }
+
+  html += "</div></section>";
+  return html;
+}
+
+function adminGroupMatchRowHTML(m) {
+  var r = officialResults[m.id] || {};
+  return '<div class="match-row">' +
+    '<div class="match-side home">' + adminTeamHTML(m.home) + "</div>" +
+    '<div class="score-box">' +
+      adminScoreInput(m.id, "home", r.home) +
+      '<span class="score-sep">-</span>' +
+      adminScoreInput(m.id, "away", r.away) +
+    "</div>" +
+    '<div class="match-side away">' + adminTeamHTML(m.away) + "</div></div>";
 }
 
 function adminTeamHTML(name) {
@@ -119,8 +170,24 @@ function attachAdminListeners() {
   els.viewerBody.querySelectorAll("input.admin-input").forEach(function (inp) {
     inp.addEventListener("change", onAdminScore);
   });
+  var prevBtn = els.viewerBody.querySelector(".admin-day-prev");
+  var nextBtn = els.viewerBody.querySelector(".admin-day-next");
+  if (prevBtn) {
+    prevBtn.addEventListener("click", function () { shiftAdminSelectedDay(-1); });
+  }
+  if (nextBtn) {
+    nextBtn.addEventListener("click", function () { shiftAdminSelectedDay(1); });
+  }
   var saveBtn = document.getElementById("admin-save");
   if (saveBtn) saveBtn.addEventListener("click", onAdminSave);
+}
+
+function shiftAdminSelectedDay(delta) {
+  if (!adminSelectedDayDate) adminSelectedDayDate = getDefaultScheduleDate();
+  var next = shiftScheduleDate(adminSelectedDayDate, delta);
+  if (next < TOURNAMENT_START || next > TOURNAMENT_END) return;
+  adminSelectedDayDate = next;
+  renderAdmin();
 }
 
 function onAdminScore(e) {

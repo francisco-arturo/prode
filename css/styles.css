@@ -223,6 +223,80 @@ body.ad-open { overflow: hidden; }
   display: inline-block;
 }
 
+/* ---------- Partidos del día ---------- */
+.today-phase { margin-bottom: 36px; }
+.day-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.day-nav-label {
+  flex: 1;
+  margin: 0;
+  text-align: center;
+  text-transform: capitalize;
+}
+.day-nav-btn {
+  flex: 0 0 auto;
+  min-width: 44px;
+  padding: 8px 12px;
+  font-size: 18px;
+  line-height: 1;
+}
+.day-nav-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.today-meta {
+  color: var(--muted);
+  font-size: 14px;
+}
+.today-empty {
+  margin: 0;
+  padding: 20px 16px;
+  text-align: center;
+  color: var(--muted);
+  background: var(--card);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+}
+.today-matches {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.today-match-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 12px 14px;
+}
+.today-match-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed var(--border);
+}
+.today-match-time {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--green-dark);
+}
+.today-match-phase {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.today-section.admin-today { margin-bottom: 28px; }
+.today-section.admin-today .day-nav { margin-top: 0; }
+
 /* ---------- Grupos ---------- */
 .groups-grid {
   display: grid;
