@@ -13,16 +13,41 @@ var viewerBackHandler = null;
 
 var els = {};
 var appInitialized = false;
+var adMusicPlaying = false;
 
 document.addEventListener("DOMContentLoaded", function () {
   showAdThenInit();
 });
 
+function playAdMusic() {
+  if (!els.adTheme || adMusicPlaying) return;
+  els.adTheme.volume = 0.85;
+  var playPromise = els.adTheme.play();
+  if (!playPromise || !playPromise.then) {
+    adMusicPlaying = true;
+    return;
+  }
+  playPromise.then(function () {
+    adMusicPlaying = true;
+  }).catch(function () {
+    adMusicPlaying = false;
+  });
+}
+
+function stopAdMusic() {
+  if (!els.adTheme) return;
+  els.adTheme.pause();
+  els.adTheme.currentTime = 0;
+  adMusicPlaying = false;
+}
+
 function showAdThenInit() {
   els.adOverlay = document.getElementById("ad-overlay");
   els.adClose = document.getElementById("ad-close");
+  els.adTheme = document.getElementById("ad-theme");
 
   function closeAd() {
+    stopAdMusic();
     if (els.adOverlay) {
       els.adOverlay.classList.remove("open");
       els.adOverlay.setAttribute("aria-hidden", "true");
@@ -39,10 +64,15 @@ function showAdThenInit() {
   els.adOverlay.classList.add("open");
   els.adOverlay.setAttribute("aria-hidden", "false");
   document.body.classList.add("ad-open");
+  playAdMusic();
   els.adClose.addEventListener("click", closeAd);
   els.adOverlay.addEventListener("click", function (e) {
     if (e.target === els.adOverlay) closeAd();
   });
+  // Autoplay con sonido suele estar bloqueado: arranca al primer toque en la publi.
+  els.adOverlay.addEventListener("pointerdown", function () {
+    playAdMusic();
+  }, { once: true });
 }
 
 function initApp() {
