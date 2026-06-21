@@ -4,17 +4,20 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PRODE Mundial 2026</title>
-  <link rel="stylesheet" href="css/styles.css?v=6" />
+  <link rel="stylesheet" href="css/styles.css?v=7" />
 </head>
 <body>
   <!-- Publicidad al abrir la app (cada visita) -->
   <div id="ad-overlay" class="ad-overlay" aria-hidden="true">
     <div class="ad-box">
       <img src="img/ad.jpg" alt="Publicidad" class="ad-image" />
-      <button type="button" id="ad-close" class="btn btn-primary ad-close">Continuar al PRODE</button>
+      <button type="button" id="ad-close" class="btn btn-primary ad-close">Continuar al PRODE 🎵</button>
+      <p class="ad-music-hint">La música arranca al continuar y sigue en la app.</p>
     </div>
-    <audio id="ad-theme" src="img/esta-locura.mp3" preload="auto"></audio>
   </div>
+
+  <audio id="app-theme" src="img/esta-locura.mp3" preload="auto" loop></audio>
+  <button type="button" id="btn-music" class="music-fab" hidden aria-label="Silenciar música" title="Música">🔊</button>
 
   <!-- Modal PIN (admin) -->
   <div id="pin-overlay" class="pin-overlay" aria-hidden="true">
@@ -108,7 +111,7 @@
   <script src="js/scoring.js?v=6"></script>
   <script src="js/storage.js?v=6"></script>
   <script src="js/cloud.js?v=6"></script>
-  <script src="js/app.js?v=6"></script>
+  <script src="js/app.js?v=7"></script>
   <script src="js/viewer.js?v=6"></script>
   <script src="js/admin.js?v=6"></script>
 </body>

@@ -13,41 +13,69 @@ var viewerBackHandler = null;
 
 var els = {};
 var appInitialized = false;
-var adMusicPlaying = false;
+var appMusicOn = false;
+var appMusicMuted = false;
 
 document.addEventListener("DOMContentLoaded", function () {
   showAdThenInit();
 });
 
-function playAdMusic() {
-  if (!els.adTheme || adMusicPlaying) return;
-  els.adTheme.volume = 0.85;
-  var playPromise = els.adTheme.play();
+function startAppMusic() {
+  if (!els.appTheme || appMusicOn) return;
+  els.appTheme.volume = 0.75;
+  var playPromise = els.appTheme.play();
   if (!playPromise || !playPromise.then) {
-    adMusicPlaying = true;
+    appMusicOn = true;
+    updateMusicFab();
     return;
   }
   playPromise.then(function () {
-    adMusicPlaying = true;
+    appMusicOn = true;
+    appMusicMuted = false;
+    updateMusicFab();
   }).catch(function () {
-    adMusicPlaying = false;
+    appMusicOn = false;
   });
 }
 
-function stopAdMusic() {
-  if (!els.adTheme) return;
-  els.adTheme.pause();
-  els.adTheme.currentTime = 0;
-  adMusicPlaying = false;
+function toggleAppMusic() {
+  if (!els.appTheme) return;
+  if (!appMusicOn) {
+    startAppMusic();
+    return;
+  }
+  if (appMusicMuted) {
+    els.appTheme.play();
+    appMusicMuted = false;
+  } else {
+    els.appTheme.pause();
+    appMusicMuted = true;
+  }
+  updateMusicFab();
+}
+
+function updateMusicFab() {
+  if (!els.btnMusic) return;
+  els.btnMusic.hidden = false;
+  if (appMusicOn && !appMusicMuted) {
+    els.btnMusic.textContent = "🔊";
+    els.btnMusic.title = "Silenciar música";
+    els.btnMusic.setAttribute("aria-label", "Silenciar música");
+  } else {
+    els.btnMusic.textContent = "🔇";
+    els.btnMusic.title = "Activar música";
+    els.btnMusic.setAttribute("aria-label", "Activar música");
+  }
 }
 
 function showAdThenInit() {
   els.adOverlay = document.getElementById("ad-overlay");
   els.adClose = document.getElementById("ad-close");
-  els.adTheme = document.getElementById("ad-theme");
+  els.appTheme = document.getElementById("app-theme");
+  els.btnMusic = document.getElementById("btn-music");
 
   function closeAd() {
-    stopAdMusic();
+    startAppMusic();
     if (els.adOverlay) {
       els.adOverlay.classList.remove("open");
       els.adOverlay.setAttribute("aria-hidden", "true");
@@ -64,15 +92,7 @@ function showAdThenInit() {
   els.adOverlay.classList.add("open");
   els.adOverlay.setAttribute("aria-hidden", "false");
   document.body.classList.add("ad-open");
-  playAdMusic();
   els.adClose.addEventListener("click", closeAd);
-  els.adOverlay.addEventListener("click", function (e) {
-    if (e.target === els.adOverlay) closeAd();
-  });
-  // Autoplay con sonido suele estar bloqueado: arranca al primer toque en la publi.
-  els.adOverlay.addEventListener("pointerdown", function () {
-    playAdMusic();
-  }, { once: true });
 }
 
 function initApp() {
@@ -91,6 +111,8 @@ function initApp() {
   els.todayContainer = document.getElementById("today-container");
   els.dayPrev = document.getElementById("day-prev");
   els.dayNext = document.getElementById("day-next");
+  els.appTheme = document.getElementById("app-theme");
+  els.btnMusic = document.getElementById("btn-music");
   els.btnSave = document.getElementById("btn-save");
   els.btnLeaderboard = document.getElementById("btn-leaderboard");
   els.btnParticipants = document.getElementById("btn-participants");
@@ -112,6 +134,7 @@ function initApp() {
   els.btnReset.addEventListener("click", onResetClick);
   if (els.dayPrev) els.dayPrev.addEventListener("click", function () { shiftSelectedDay(-1); });
   if (els.dayNext) els.dayNext.addEventListener("click", function () { shiftSelectedDay(1); });
+  if (els.btnMusic) els.btnMusic.addEventListener("click", toggleAppMusic);
   els.viewerBack.addEventListener("click", function () {
     if (viewerBackHandler) viewerBackHandler();
   });
@@ -127,6 +150,11 @@ function initApp() {
     state = saved;
     if (!state.predictions) state.predictions = {};
     enterMainScreen();
+  }
+
+  if (els.btnMusic) {
+    els.btnMusic.hidden = false;
+    updateMusicFab();
   }
 }
 
