@@ -14,7 +14,6 @@ var viewerBackHandler = null;
 var els = {};
 var appInitialized = false;
 var appMusicOn = false;
-var appMusicMuted = false;
 
 document.addEventListener("DOMContentLoaded", function () {
   showAdThenInit();
@@ -26,53 +25,19 @@ function startAppMusic() {
   var playPromise = els.appTheme.play();
   if (!playPromise || !playPromise.then) {
     appMusicOn = true;
-    updateMusicFab();
     return;
   }
   playPromise.then(function () {
     appMusicOn = true;
-    appMusicMuted = false;
-    updateMusicFab();
   }).catch(function () {
     appMusicOn = false;
   });
-}
-
-function toggleAppMusic() {
-  if (!els.appTheme) return;
-  if (!appMusicOn) {
-    startAppMusic();
-    return;
-  }
-  if (appMusicMuted) {
-    els.appTheme.play();
-    appMusicMuted = false;
-  } else {
-    els.appTheme.pause();
-    appMusicMuted = true;
-  }
-  updateMusicFab();
-}
-
-function updateMusicFab() {
-  if (!els.btnMusic) return;
-  els.btnMusic.hidden = false;
-  if (appMusicOn && !appMusicMuted) {
-    els.btnMusic.textContent = "🔊";
-    els.btnMusic.title = "Silenciar música";
-    els.btnMusic.setAttribute("aria-label", "Silenciar música");
-  } else {
-    els.btnMusic.textContent = "🔇";
-    els.btnMusic.title = "Activar música";
-    els.btnMusic.setAttribute("aria-label", "Activar música");
-  }
 }
 
 function showAdThenInit() {
   els.adOverlay = document.getElementById("ad-overlay");
   els.adClose = document.getElementById("ad-close");
   els.appTheme = document.getElementById("app-theme");
-  els.btnMusic = document.getElementById("btn-music");
 
   function closeAd() {
     startAppMusic();
@@ -112,7 +77,6 @@ function initApp() {
   els.dayPrev = document.getElementById("day-prev");
   els.dayNext = document.getElementById("day-next");
   els.appTheme = document.getElementById("app-theme");
-  els.btnMusic = document.getElementById("btn-music");
   els.btnSave = document.getElementById("btn-save");
   els.btnLeaderboard = document.getElementById("btn-leaderboard");
   els.btnParticipants = document.getElementById("btn-participants");
@@ -134,7 +98,6 @@ function initApp() {
   els.btnReset.addEventListener("click", onResetClick);
   if (els.dayPrev) els.dayPrev.addEventListener("click", function () { shiftSelectedDay(-1); });
   if (els.dayNext) els.dayNext.addEventListener("click", function () { shiftSelectedDay(1); });
-  if (els.btnMusic) els.btnMusic.addEventListener("click", toggleAppMusic);
   els.viewerBack.addEventListener("click", function () {
     if (viewerBackHandler) viewerBackHandler();
   });
@@ -150,11 +113,6 @@ function initApp() {
     state = saved;
     if (!state.predictions) state.predictions = {};
     enterMainScreen();
-  }
-
-  if (els.btnMusic) {
-    els.btnMusic.hidden = false;
-    updateMusicFab();
   }
 }
 

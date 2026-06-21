@@ -94,27 +94,6 @@ body.ad-open { overflow: hidden; }
   color: var(--muted);
 }
 
-.music-fab {
-  position: fixed;
-  right: 16px;
-  bottom: 16px;
-  z-index: 90;
-  width: 48px;
-  height: 48px;
-  border: none;
-  border-radius: 999px;
-  background: var(--card);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-  font-size: 22px;
-  line-height: 1;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.music-fab:hover { transform: scale(1.05); }
-.music-fab[hidden] { display: none; }
-
 /* ---------- Modal PIN admin ---------- */
 .pin-overlay {
   display: none;
