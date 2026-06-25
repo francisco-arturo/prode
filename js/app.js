@@ -107,6 +107,7 @@ function initApp() {
   });
 
   initCloud();
+  document.addEventListener("keydown", onScoreInputEnter);
 
   var saved = loadState();
   if (saved && saved.playerName) {
@@ -411,8 +412,39 @@ function buildGroupMatchRow(m) {
 
 function scoreInputHTML(matchId, side, value) {
   var v = (value === 0 || value) ? value : "";
+  var enterHint = side === "away" ? "next" : "next";
   return '<input type="number" class="score-input" min="0" max="99" inputmode="numeric" ' +
-    'data-match="' + matchId + '" data-side="' + side + '" value="' + v + '" aria-label="Goles" />';
+    'enterkeyhint="' + enterHint + '" data-match="' + matchId + '" data-side="' + side +
+    '" value="' + v + '" aria-label="Goles" />';
+}
+
+function scoreInputsInNavOrder(scope) {
+  var seen = {};
+  var inputs = [];
+  scope.querySelectorAll("input.score-input").forEach(function (el) {
+    if (el.disabled || el.offsetParent === null) return;
+    var key = el.dataset.match + ":" + el.dataset.side;
+    if (seen[key]) return;
+    seen[key] = true;
+    inputs.push(el);
+  });
+  return inputs;
+}
+
+function onScoreInputEnter(ev) {
+  if (ev.key !== "Enter") return;
+  var inp = ev.target;
+  if (!inp.matches || !inp.matches("input.score-input")) return;
+  var scope = inp.closest("#screen-main, #viewer-body");
+  if (!scope) return;
+  ev.preventDefault();
+  var inputs = scoreInputsInNavOrder(scope);
+  var idx = inputs.indexOf(inp);
+  if (idx >= 0 && idx < inputs.length - 1) {
+    var next = inputs[idx + 1];
+    next.focus();
+    if (window.matchMedia("(pointer: fine)").matches) next.select();
+  }
 }
 
 function scoreDisplayHTML(value, official) {

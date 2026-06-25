@@ -4,6 +4,7 @@
 // resolveBracket, GROUPS, KNOCKOUT, KNOCKOUT_ROUNDS).
 
 var adminSelectedDayDate = null;
+var adminRenderTimer = null;
 
 function openAdmin() {
   showOverlay();
@@ -24,6 +25,9 @@ function openAdmin() {
 }
 
 function renderAdmin() {
+  clearTimeout(adminRenderTimer);
+  adminRenderTimer = null;
+
   var html = '<div class="admin-bar">' +
     '<p class="admin-help">Cargá el marcador real de cada partido jugado. Los partidos ' +
     "sin cargar no suman puntos. Podés corregir un resultado cuando quieras.</p>" +
@@ -133,8 +137,10 @@ function adminTeamHTML(name) {
 
 function adminScoreInput(matchId, side, value) {
   var v = (value === 0 || value) ? value : "";
+  var enterHint = side === "away" ? "next" : "next";
   return '<input type="number" class="score-input admin-input" min="0" max="99" inputmode="numeric" ' +
-    'data-match="' + matchId + '" data-side="' + side + '" value="' + v + '" aria-label="Goles" />';
+    'enterkeyhint="' + enterHint + '" data-match="' + matchId + '" data-side="' + side +
+    '" value="' + v + '" aria-label="Goles" />';
 }
 
 function adminKnockoutCard(def, info) {
@@ -168,7 +174,8 @@ function adminKoTeam(team, ref) {
 
 function attachAdminListeners() {
   els.viewerBody.querySelectorAll("input.admin-input").forEach(function (inp) {
-    inp.addEventListener("change", onAdminScore);
+    inp.addEventListener("input", onAdminScore);
+    inp.addEventListener("blur", onAdminInputBlur);
   });
   var prevBtn = els.viewerBody.querySelector(".admin-day-prev");
   var nextBtn = els.viewerBody.querySelector(".admin-day-next");
@@ -197,7 +204,32 @@ function onAdminScore(e) {
   var val = inp.value === "" ? null : Math.max(0, parseInt(inp.value, 10));
   if (isNaN(val)) val = null;
   officialResults[mid][inp.dataset.side] = val;
-  renderAdmin(); // re-render para recalcular llaves reales
+}
+
+function onAdminInputBlur() {
+  // Dejar que Enter mueva el foco al siguiente campo antes de decidir si re-renderizar.
+  setTimeout(function () {
+    if (document.activeElement &&
+        document.activeElement.matches &&
+        document.activeElement.matches("input.admin-input")) {
+      return;
+    }
+    scheduleAdminRender();
+  }, 50);
+}
+
+function scheduleAdminRender() {
+  clearTimeout(adminRenderTimer);
+  adminRenderTimer = setTimeout(function () {
+    adminRenderTimer = null;
+    if (document.activeElement &&
+        document.activeElement.matches &&
+        document.activeElement.matches("input.admin-input")) {
+      scheduleAdminRender();
+      return;
+    }
+    renderAdmin();
+  }, 300);
 }
 
 function onAdminSave() {
