@@ -336,25 +336,23 @@ function renderTodayMatches() {
   if (!els.todayContainer) return;
 
   ensureSelectedDayDate();
+  var bracketInput = bracketInputForDisplay();
+  var day = getMatchesForSelectedDay(selectedDayDate, bracketInput);
+  els.todayContainer.innerHTML = "";
 
-  function paintTodayMatches() {
-    var bracketInput = bracketInputForDisplay();
-    var day = getMatchesForSelectedDay(selectedDayDate, bracketInput);
-    els.todayContainer.innerHTML = "";
+  if (els.todaySection) els.todaySection.hidden = false;
+  if (els.todayMeta) {
+    els.todayMeta.textContent = formatScheduleDayMeta(day.date, day.matches.length, day.isToday);
+  }
+  updateDayNavButtons();
 
-    if (els.todaySection) els.todaySection.hidden = false;
-    if (els.todayMeta) {
-      els.todayMeta.textContent = formatScheduleDayMeta(day.date, day.matches.length, day.isToday);
-    }
-    updateDayNavButtons();
+  if (!day.matches.length) {
+    els.todayContainer.innerHTML = '<p class="today-empty">No hay partidos este día.</p>';
+    return;
+  }
 
-    if (!day.matches.length) {
-      els.todayContainer.innerHTML = '<p class="today-empty">No hay partidos este día.</p>';
-      return;
-    }
-
-    var bracket = resolveBracket(bracketInput);
-    day.matches.forEach(function (entry) {
+  var bracket = resolveBracket(bracketInput);
+  day.matches.forEach(function (entry) {
     var card = document.createElement("div");
     card.className = "today-match-card";
 
