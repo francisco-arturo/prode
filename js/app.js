@@ -5,6 +5,24 @@ var state = { playerName: "", predictions: {}, isAdmin: false };
 // Resultados oficiales cargados desde la nube (los usa el leaderboard y el admin).
 var officialResults = {};
 
+// Grupos con resultado oficial cargado → el cuadro usa esos clasificados;
+// las eliminatorias siguen resolviéndose con el pronóstico del jugador.
+function bracketInputForDisplay() {
+  var officialGroupsDone = GROUPS.every(function (g) {
+    return isGroupComplete(g, officialResults);
+  });
+  if (!officialGroupsDone) return state.predictions;
+
+  var merged = Object.assign({}, state.predictions);
+  GROUPS.forEach(function (g) {
+    g.matches.forEach(function (m) {
+      var r = officialResults[m.id];
+      if (hasResult(r)) merged[m.id] = r;
+    });
+  });
+  return merged;
+}
+
 // Fecha seleccionada en "Partidos del día" (homepage).
 var selectedDayDate = null;
 
@@ -318,22 +336,25 @@ function renderTodayMatches() {
   if (!els.todayContainer) return;
 
   ensureSelectedDayDate();
-  var day = getMatchesForSelectedDay(selectedDayDate, state.predictions);
-  els.todayContainer.innerHTML = "";
 
-  if (els.todaySection) els.todaySection.hidden = false;
-  if (els.todayMeta) {
-    els.todayMeta.textContent = formatScheduleDayMeta(day.date, day.matches.length, day.isToday);
-  }
-  updateDayNavButtons();
+  function paintTodayMatches() {
+    var bracketInput = bracketInputForDisplay();
+    var day = getMatchesForSelectedDay(selectedDayDate, bracketInput);
+    els.todayContainer.innerHTML = "";
 
-  if (!day.matches.length) {
-    els.todayContainer.innerHTML = '<p class="today-empty">No hay partidos este día.</p>';
-    return;
-  }
+    if (els.todaySection) els.todaySection.hidden = false;
+    if (els.todayMeta) {
+      els.todayMeta.textContent = formatScheduleDayMeta(day.date, day.matches.length, day.isToday);
+    }
+    updateDayNavButtons();
 
-  var bracket = resolveBracket(state.predictions);
-  day.matches.forEach(function (entry) {
+    if (!day.matches.length) {
+      els.todayContainer.innerHTML = '<p class="today-empty">No hay partidos este día.</p>';
+      return;
+    }
+
+    var bracket = resolveBracket(bracketInput);
+    day.matches.forEach(function (entry) {
     var card = document.createElement("div");
     card.className = "today-match-card";
 
@@ -476,8 +497,9 @@ function applyScore(matchId, side, rawValue) {
 }
 
 function updateStandings() {
-  var allStandings = computeAllStandings(state.predictions);
-  var thirds = computeBestThirds(state.predictions, allStandings);
+  var bracketInput = bracketInputForDisplay();
+  var allStandings = computeAllStandings(bracketInput);
+  var thirds = computeBestThirds(bracketInput, allStandings);
   var qualifiedThirdSet = {};
   if (thirds) {
     thirds.qualifiedGroups.forEach(function (g) { qualifiedThirdSet[g] = true; });
@@ -487,7 +509,7 @@ function updateStandings() {
     var rows = allStandings[group.id];
     var container = document.getElementById("standings-" + group.id);
     if (!container) return;
-    var complete = isGroupComplete(group, state.predictions);
+    var complete = isGroupComplete(group, bracketInput);
 
     var html = '<table class="standings-table">' +
       "<thead><tr>" +
@@ -526,8 +548,9 @@ function fmtDG(dg) {
 // ---------- Fase eliminatoria ----------
 
 function renderKnockout() {
-  var result = resolveBracket(state.predictions);
-  var allComplete = GROUPS.every(function (g) { return isGroupComplete(g, state.predictions); });
+  var bracketInput = bracketInputForDisplay();
+  var result = resolveBracket(bracketInput);
+  var allComplete = GROUPS.every(function (g) { return isGroupComplete(g, bracketInput); });
 
   if (!allComplete) {
     els.knockoutNotice.textContent =
