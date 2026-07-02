@@ -126,6 +126,13 @@ function initApp() {
 
   initCloud();
   document.addEventListener("keydown", onScoreInputEnter);
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible" &&
+        els.screenMain && els.screenMain.classList.contains("active")) {
+      refreshMatchViews();
+      scheduleKickoffRefresh();
+    }
+  });
 
   var saved = loadState();
   if (saved && saved.playerName) {
@@ -233,10 +240,8 @@ function enterMainScreen() {
   refreshOfficial()
     .then(syncPredictionsFromCloud)
     .then(function () {
-      renderTodayMatches();
-      renderGroups();
-      updateStandings();
-      renderKnockout();
+      refreshMatchViews();
+      scheduleKickoffRefresh();
     });
 }
 
@@ -245,10 +250,8 @@ function refreshMainAfterOfficial() {
   refreshOfficial()
     .then(syncPredictionsFromCloud)
     .then(function () {
-      renderTodayMatches();
-      renderGroups();
-      updateStandings();
-      renderKnockout();
+      refreshMatchViews();
+      scheduleKickoffRefresh();
     });
 }
 
@@ -263,6 +266,7 @@ function syncPredictionsFromCloud() {
 
 function mergeCloudPredictions(cloudData) {
   Object.keys(cloudData).forEach(function (mid) {
+    if (isMatchKickoffLocked(mid)) return;
     var cp = cloudData[mid];
     if (!cp || typeof cp !== "object") return;
     if (!state.predictions[mid]) {
@@ -279,18 +283,53 @@ function mergeCloudPredictions(cloudData) {
   });
 }
 
-function isMatchLocked(matchId) {
+function isMatchOfficiallyLocked(matchId) {
   return isMatchOfficiallySet(officialResults, matchId);
 }
 
-// En partidos bloqueados mostramos el resultado oficial; si no, el pronóstico del jugador.
-function scoresForMatchDisplay(matchId, locked) {
-  if (locked) {
+function isMatchKickoffLocked(matchId) {
+  return isMatchPastKickoff(matchId);
+}
+
+function isMatchLocked(matchId) {
+  return isMatchKickoffLocked(matchId) || isMatchOfficiallyLocked(matchId);
+}
+
+function matchLockTitle(matchId) {
+  if (isMatchOfficiallyLocked(matchId)) return "Resultado oficial";
+  if (isMatchKickoffLocked(matchId)) return "Partido iniciado — no se puede editar";
+  return "";
+}
+
+// Con resultado oficial cargado mostramos ese marcador; si no, el pronóstico del jugador.
+function scoresForMatchDisplay(matchId) {
+  if (isMatchOfficiallyLocked(matchId)) {
     var official = officialResults[matchId] || {};
     return { home: official.home, away: official.away };
   }
   var pred = state.predictions[matchId] || {};
   return { home: pred.home, away: pred.away };
+}
+
+var kickoffRefreshTimer = null;
+
+function refreshMatchViews() {
+  renderTodayMatches();
+  renderGroups();
+  updateStandings();
+  renderKnockout();
+}
+
+function scheduleKickoffRefresh() {
+  if (kickoffRefreshTimer) clearTimeout(kickoffRefreshTimer);
+  var ms = msUntilNextKickoff();
+  if (ms === null) return;
+  kickoffRefreshTimer = setTimeout(function () {
+    if (els.screenMain && els.screenMain.classList.contains("active")) {
+      refreshMatchViews();
+    }
+    scheduleKickoffRefresh();
+  }, ms + 500);
 }
 
 // ---------- Helpers de equipo ----------
@@ -406,18 +445,19 @@ function renderGroups() {
 
 function buildGroupMatchRow(m) {
   var row = document.createElement("div");
+  var officialLock = isMatchOfficiallyLocked(m.id);
   var locked = isMatchLocked(m.id);
   row.className = "match-row" + (locked ? " locked" : "");
 
-  var scores = scoresForMatchDisplay(m.id, locked);
+  var scores = scoresForMatchDisplay(m.id);
 
   row.innerHTML =
     '<div class="match-side home">' + teamHTML(m.home) + "</div>" +
     '<div class="score-box">' +
-      scoreFieldHTML(m.id, "home", scores.home, locked) +
+      scoreFieldHTML(m.id, "home", scores.home, locked, officialLock) +
       '<span class="score-sep">-</span>' +
-      scoreFieldHTML(m.id, "away", scores.away, locked) +
-      (locked ? '<span class="match-lock" title="Resultado oficial">🔒</span>' : "") +
+      scoreFieldHTML(m.id, "away", scores.away, locked, officialLock) +
+      (locked ? '<span class="match-lock" title="' + escapeHTML(matchLockTitle(m.id)) + '">🔒</span>' : "") +
     "</div>" +
     '<div class="match-side away">' + teamHTML(m.away) + "</div>";
 
@@ -472,8 +512,10 @@ function scoreDisplayHTML(value, official) {
   return '<span class="' + cls + '" aria-label="Goles">' + escapeHTML(v) + "</span>";
 }
 
-function scoreFieldHTML(matchId, side, value, locked) {
-  return locked ? scoreDisplayHTML(value, true) : scoreInputHTML(matchId, side, value);
+function scoreFieldHTML(matchId, side, value, locked, showAsOfficial) {
+  return locked
+    ? scoreDisplayHTML(value, !!showAsOfficial)
+    : scoreInputHTML(matchId, side, value);
 }
 
 function onGroupInput(e) {
@@ -581,11 +623,12 @@ function renderKnockout() {
 
 function buildKnockoutCard(def, info) {
   var card = document.createElement("div");
+  var officialLock = isMatchOfficiallyLocked(def.id);
   var locked = isMatchLocked(def.id);
   card.className = "ko-card" + (locked ? " locked" : "");
 
   var num = def.id.split("-")[1];
-  var scores = scoresForMatchDisplay(def.id, locked);
+  var scores = scoresForMatchDisplay(def.id);
   var bothDefined = info.homeDefined && info.awayDefined;
 
   var homeLabel = info.home || slotLabel(def.home);
@@ -594,16 +637,17 @@ function buildKnockoutCard(def, info) {
   var homeWin = info.complete && info.winner === info.home;
   var awayWin = info.complete && info.winner === info.away;
 
-  var html = '<div class="ko-num">Partido ' + num + (locked ? ' 🔒' : '') + "</div>";
+  var lockTitle = locked ? ' title="' + escapeHTML(matchLockTitle(def.id)) + '"' : "";
+  var html = '<div class="ko-num"' + lockTitle + ">Partido " + num + (locked ? " 🔒" : "") + "</div>";
 
   html += '<div class="ko-row ' + (homeWin ? "winner" : "") + '">' +
     koTeamHTML(info.home, homeLabel) +
-    (bothDefined ? scoreFieldHTML(def.id, "home", scores.home, locked) : "") +
+    (bothDefined ? scoreFieldHTML(def.id, "home", scores.home, locked, officialLock) : "") +
     "</div>";
 
   html += '<div class="ko-row ' + (awayWin ? "winner" : "") + '">' +
     koTeamHTML(info.away, awayLabel) +
-    (bothDefined ? scoreFieldHTML(def.id, "away", scores.away, locked) : "") +
+    (bothDefined ? scoreFieldHTML(def.id, "away", scores.away, locked, officialLock) : "") +
     "</div>";
 
   card.innerHTML = html;
