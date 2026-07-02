@@ -255,3 +255,28 @@ function formatScheduleTime(timeStr) {
   if (!timeStr) return "";
   return timeStr.replace(":", ".") + " hs";
 }
+
+// Hora de arranque del partido (ms epoch). Usa la hora local del navegador.
+function getMatchKickoffMs(matchId) {
+  var sch = MATCH_SCHEDULE[matchId];
+  if (!sch || !sch.date || !sch.time) return null;
+  return new Date(sch.date + "T" + sch.time + ":00").getTime();
+}
+
+// True si el partido ya arrancó (o debería haber arrancado según el calendario).
+function isMatchPastKickoff(matchId) {
+  var kickoff = getMatchKickoffMs(matchId);
+  if (kickoff === null) return false;
+  return Date.now() >= kickoff;
+}
+
+// Milisegundos hasta el próximo arranque futuro, o null si no hay ninguno.
+function msUntilNextKickoff() {
+  var now = Date.now();
+  var next = null;
+  buildMatchCatalog().forEach(function (m) {
+    var t = getMatchKickoffMs(m.id);
+    if (t !== null && t > now && (next === null || t < next)) next = t;
+  });
+  return next === null ? null : next - now;
+}
